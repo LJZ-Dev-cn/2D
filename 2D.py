@@ -23,6 +23,7 @@ beijin = pygame.transform.scale(beijin, (640, 640))  # 草地背景
 
 clock = pygame.time.Clock()
 running = True
+player_decation = player_x,player_y
 
 while running:
     # 事件处理
@@ -36,7 +37,6 @@ while running:
     if keys[pygame.K_s]: player_y += 5
     if keys[pygame.K_a]: player_x -= 5
     if keys[pygame.K_d]: player_x += 5
-
     # 边界限制（防止跑出画面）
     if player_x < 0: player_x = 0
     if player_x > 640 - 50: player_x = 640 - 50
