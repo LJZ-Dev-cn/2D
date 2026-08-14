@@ -72,18 +72,14 @@ class InfiniteMap:
     
     def __init__(self, tile_size=32, chunk_size=16, scale=12.0, octaves=4):
         self.tile_size = tile_size
-        self.chunk_size = chunk_size  # 每个区块 16x16 格
+        self.chunk_size = chunk_size
         self.scale = scale
         self.octaves = octaves
-        self.world_seed = 42  # 固定种子，保证同一位置地形永远一致
+        self.world_seed = 42
         
-        # 存储已生成的区块：key = (chunk_x, chunk_y), value = 地形数组
         self.chunks = {}
-        
-        # 当前加载的区块范围
         self.loaded_chunks = set()
         
-        # 地形颜色
         self.terrain_colors = {
             0: (144, 238, 144),   # 平原
             1: (139, 90, 43),     # 山地
@@ -92,7 +88,6 @@ class InfiniteMap:
             4: (255, 255, 255),   # 雪山
         }
         
-        # 预创建图块缓存（每个地形类型一个 Surface）
         self.tile_cache = {}
         for terrain_id, color in self.terrain_colors.items():
             surf = pygame.Surface((tile_size, tile_size))
@@ -100,62 +95,43 @@ class InfiniteMap:
             self.tile_cache[terrain_id] = surf
     
     def get_chunk_key(self, chunk_x, chunk_y):
-        """生成区块的唯一键"""
         return f"{chunk_x},{chunk_y}"
     
     def generate_chunk(self, chunk_x, chunk_y):
-        """生成一个区块的地形数据"""
-        # 使用区块坐标作为种子的一部分，保证同一位置永远一致
         seed = self.world_seed + chunk_x * 10000 + chunk_y * 7
-        
-        # 生成该区块的噪声图
         noise_map = generate_perlin_noise(
-            self.chunk_size, 
-            self.chunk_size, 
-            scale=self.scale, 
-            octaves=self.octaves,
-            seed=seed
+            self.chunk_size, self.chunk_size,
+            scale=self.scale, octaves=self.octaves, seed=seed
         )
         
-        # 转换为地形类型
         terrain_map = [[0 for _ in range(self.chunk_size)] for _ in range(self.chunk_size)]
         for y in range(self.chunk_size):
             for x in range(self.chunk_size):
                 h = noise_map[y][x]
                 if h < 0.25:
-                    terrain_map[y][x] = 2   # 水域
+                    terrain_map[y][x] = 2
                 elif h < 0.35:
-                    terrain_map[y][x] = 0   # 平原
+                    terrain_map[y][x] = 0
                 elif h < 0.65:
-                    terrain_map[y][x] = 3   # 森林
+                    terrain_map[y][x] = 3
                 elif h < 0.85:
-                    terrain_map[y][x] = 1   # 山地
+                    terrain_map[y][x] = 1
                 else:
-                    terrain_map[y][x] = 4   # 雪山
-        
+                    terrain_map[y][x] = 4
         return terrain_map
     
     def get_tile(self, world_x, world_y):
-        """获取世界坐标 (world_x, world_y) 处的地形类型"""
-        # 将世界坐标转换为区块坐标和区块内坐标
         chunk_x = world_x // self.chunk_size
         chunk_y = world_y // self.chunk_size
         local_x = world_x % self.chunk_size
         local_y = world_y % self.chunk_size
         
         key = self.get_chunk_key(chunk_x, chunk_y)
-        
-        # 如果区块还没生成，先生成
         if key not in self.chunks:
             self.chunks[key] = self.generate_chunk(chunk_x, chunk_y)
-        
         return self.chunks[key][local_y][local_x]
     
-    def update(self, player_chunk_x, player_chunk_y, load_radius=2):
-        """
-        更新加载的区块：以玩家所在区块为中心，加载周围 load_radius 个区块
-        """
-        # 计算需要加载的区块范围
+    def update(self, player_chunk_x, player_chunk_y, load_radius=3):
         needed_chunks = set()
         for dx in range(-load_radius, load_radius + 1):
             for dy in range(-load_radius, load_radius + 1):
@@ -163,138 +139,263 @@ class InfiniteMap:
                 cy = player_chunk_y + dy
                 needed_chunks.add((cx, cy))
         
-        # 生成新的区块
         for cx, cy in needed_chunks:
             key = self.get_chunk_key(cx, cy)
             if key not in self.chunks:
                 self.chunks[key] = self.generate_chunk(cx, cy)
         
-        # 卸载距离玩家太远的区块（节省内存）
         to_remove = []
         for key in self.chunks:
             cx, cy = map(int, key.split(','))
             if abs(cx - player_chunk_x) > load_radius + 1 or abs(cy - player_chunk_y) > load_radius + 1:
                 to_remove.append(key)
-        
         for key in to_remove:
             del self.chunks[key]
         
         self.loaded_chunks = needed_chunks
     
     def get_visible_tiles(self, camera_x, camera_y, screen_width, screen_height):
-        """
-        获取在屏幕可见范围内的所有图块及其绘制位置
-        返回：[(screen_x, screen_y, terrain_id), ...]
-        """
         visible = []
-        
-        # 计算可见范围（在世界坐标中）
         start_world_x = camera_x
         start_world_y = camera_y
         end_world_x = camera_x + screen_width + self.tile_size
         end_world_y = camera_y + screen_height + self.tile_size
         
-        # 转换为区块范围
         start_chunk_x = start_world_x // (self.chunk_size * self.tile_size)
         start_chunk_y = start_world_y // (self.chunk_size * self.tile_size)
         end_chunk_x = end_world_x // (self.chunk_size * self.tile_size) + 1
         end_chunk_y = end_world_y // (self.chunk_size * self.tile_size) + 1
         
-        # 遍历可见范围内的区块
         for chunk_x in range(start_chunk_x, end_chunk_x + 1):
             for chunk_y in range(start_chunk_y, end_chunk_y + 1):
                 key = self.get_chunk_key(chunk_x, chunk_y)
                 if key not in self.chunks:
                     continue
-                
                 chunk_data = self.chunks[key]
-                
-                # 该区块左上角的世界坐标
                 chunk_world_x = chunk_x * self.chunk_size * self.tile_size
                 chunk_world_y = chunk_y * self.chunk_size * self.tile_size
                 
-                # 遍历区块内的所有图块
                 for local_y in range(self.chunk_size):
                     for local_x in range(self.chunk_size):
                         world_x = chunk_world_x + local_x * self.tile_size
                         world_y = chunk_world_y + local_y * self.tile_size
-                        
-                        # 检查是否在可见范围内
                         if (world_x + self.tile_size < camera_x or 
                             world_x > camera_x + screen_width or
                             world_y + self.tile_size < camera_y or 
                             world_y > camera_y + screen_height):
                             continue
-                        
                         terrain_id = chunk_data[local_y][local_x]
                         screen_x = world_x - camera_x
                         screen_y = world_y - camera_y
                         visible.append((screen_x, screen_y, terrain_id))
-        
         return visible
 
 
-# ============ 3. Pygame 初始化 ============
+# ============ 3. 有限地图系统（100x100） ============
+class FiniteMap:
+    """有限地图：100×100 格，预先用 Perlin 噪声生成"""
+    
+    def __init__(self, width=100, height=100, tile_size=32, scale=8.0, octaves=4):
+        self.width = width
+        self.height = height
+        self.tile_size = tile_size
+        
+        # 使用 Perlin 噪声生成 100x100 地图
+        noise_map = generate_perlin_noise(width, height, scale=scale, octaves=octaves, seed=999)
+        
+        self.map_data = [[0 for _ in range(width)] for _ in range(height)]
+        for y in range(height):
+            for x in range(width):
+                h = noise_map[y][x]
+                if h < 0.20:
+                    self.map_data[y][x] = 2   # 水域
+                elif h < 0.30:
+                    self.map_data[y][x] = 0   # 平原
+                elif h < 0.60:
+                    self.map_data[y][x] = 3   # 森林
+                elif h < 0.80:
+                    self.map_data[y][x] = 1   # 山地
+                else:
+                    self.map_data[y][x] = 4   # 雪山
+        
+        # 确保边缘是陆地（防止玩家初始生成在水里）
+        for x in range(width):
+            self.map_data[0][x] = 0
+            self.map_data[height-1][x] = 0
+        for y in range(height):
+            self.map_data[y][0] = 0
+            self.map_data[y][width-1] = 0
+        
+        # 颜色配置
+        self.terrain_colors = {
+            0: (144, 238, 144),
+            1: (139, 90, 43),
+            2: (65, 105, 225),
+            3: (34, 139, 34),
+            4: (255, 255, 255),
+        }
+        
+        self.tile_cache = {}
+        for terrain_id, color in self.terrain_colors.items():
+            surf = pygame.Surface((tile_size, tile_size))
+            surf.fill(color)
+            self.tile_cache[terrain_id] = surf
+    
+    def get_tile(self, x, y):
+        if 0 <= x < self.width and 0 <= y < self.height:
+            return self.map_data[y][x]
+        return 0
+    
+    def is_walkable(self, x, y):
+        tile = self.get_tile(x, y)
+        return tile != 2
+    
+    def draw(self, screen, camera_x, camera_y, screen_width, screen_height):
+        """绘制地图（带摄像机）"""
+        start_x = max(0, camera_x // self.tile_size)
+        start_y = max(0, camera_y // self.tile_size)
+        end_x = min(self.width, (camera_x + screen_width) // self.tile_size + 1)
+        end_y = min(self.height, (camera_y + screen_height) // self.tile_size + 1)
+        
+        for y in range(start_y, end_y):
+            for x in range(start_x, end_x):
+                terrain_id = self.map_data[y][x]
+                screen_x = x * self.tile_size - camera_x
+                screen_y = y * self.tile_size - camera_y
+                screen.blit(self.tile_cache[terrain_id], (screen_x, screen_y))
+
+
+# ============ 4. Pygame 初始化 ============
 pygame.init()
 
 WINDOW_WIDTH = 800
 WINDOW_HEIGHT = 600
+TILE_SIZE = 32
 
 screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
-pygame.display.set_caption("TAF Studio - 无限地图 + 摄像机跟随")
+pygame.display.set_caption("TAF Studio - 双角色切换·剧情触发")
 
-# ============ 4. 创建无限地图 ============
-TILE_SIZE = 32
-CHUNK_SIZE = 16
-world_map = InfiniteMap(tile_size=TILE_SIZE, chunk_size=CHUNK_SIZE, scale=12.0, octaves=4)
+clock = pygame.time.Clock()
+font = pygame.font.SysFont('SimHei', 20)
 
-# ============ 5. 玩家设置 ============
+
+# ============ 5. 游戏状态 ============
+# 游戏阶段: 'a_world' = 小红在无限世界, 'b_world' = 小绿在有限世界
+game_stage = 'a_world'
+
+# --- 角色A（小红）---
+player_a_x = 0
+player_a_y = 0
 PLAYER_SIZE = 30
-player_x = 0
-player_y = 0
+player_a_surf = pygame.Surface((PLAYER_SIZE, PLAYER_SIZE))
+player_a_surf.fill((255, 50, 50))  # 红色
 
-player_surf = pygame.Surface((PLAYER_SIZE, PLAYER_SIZE))
-player_surf.fill((255, 50, 50))
+# --- 角色B（小绿）---
+player_b_x = 50 * TILE_SIZE  # 出现在有限地图的中央位置
+player_b_y = 50 * TILE_SIZE
+player_b_surf = pygame.Surface((PLAYER_SIZE, PLAYER_SIZE))
+player_b_surf.fill((50, 255, 50))  # 绿色
 
+# --- 当前激活的角色指针 ---
+current_player_x = player_a_x
+current_player_y = player_a_y
+current_player_surf = player_a_surf
 
-# ============ 6. 摄像机 ============ 
+# --- 地图系统 ---
+infinite_map = InfiniteMap(tile_size=TILE_SIZE, chunk_size=16, scale=12.0, octaves=4)
+finite_map = FiniteMap(width=100, height=100, tile_size=TILE_SIZE, scale=8.0, octaves=4)
+
+# --- 摄像机 ---
 camera_x = 0
 camera_y = 0
 
+# --- 切换动画 ---
+is_transitioning = False
+transition_progress = 0
+transition_duration = 60  # 1秒 (60帧)
 
+
+# ============ 6. 核心函数 ============
 def update_camera():
     global camera_x, camera_y
-    target_camera_x = player_x - WINDOW_WIDTH // 2 + PLAYER_SIZE // 2
-    target_camera_y = player_y - WINDOW_HEIGHT // 2 + PLAYER_SIZE // 2
-    camera_x = target_camera_x
-    camera_y = target_camera_y
+    if game_stage == 'a_world':
+        target_x = current_player_x - WINDOW_WIDTH // 2 + PLAYER_SIZE // 2
+        target_y = current_player_y - WINDOW_HEIGHT // 2 + PLAYER_SIZE // 2
+    else:
+        # 有限世界：限制摄像机不能超出地图边界
+        target_x = current_player_x - WINDOW_WIDTH // 2 + PLAYER_SIZE // 2
+        target_y = current_player_y - WINDOW_HEIGHT // 2 + PLAYER_SIZE // 2
+        max_x = finite_map.width * TILE_SIZE - WINDOW_WIDTH
+        max_y = finite_map.height * TILE_SIZE - WINDOW_HEIGHT
+        target_x = max(0, min(target_x, max_x))
+        target_y = max(0, min(target_y, max_y))
+    
+    camera_x = target_x
+    camera_y = target_y
 
 
-# ============ 7. 辅助函数 ============
-def is_walkable(tile_type):
-    return tile_type != 2
+def check_trigger():
+    """检查小红是否到达 (120, 120) 坐标"""
+    global game_stage, is_transitioning, transition_progress
+    global current_player_x, current_player_y, current_player_surf
+    global player_a_x, player_a_y, player_b_x, player_b_y
+    
+    if game_stage == 'a_world' and not is_transitioning:
+        # 检查小红的坐标是否在 (120, 120) 附近（允许误差）
+        target_world_x = 120 * TILE_SIZE
+        target_world_y = 120 * TILE_SIZE
+        dist = math.sqrt((player_a_x - target_world_x)**2 + (player_a_y - target_world_y)**2)
+        if dist < 20:  # 到达触发区域
+            # 开始切换动画
+            is_transitioning = True
+            transition_progress = 0
 
 
-def can_move_to(x, y):
-    # 检查玩家的四个角是否能走
+def trigger_switch():
+    """执行角色切换"""
+    global game_stage, current_player_x, current_player_y, current_player_surf
+    global player_a_x, player_a_y, player_b_x, player_b_y
+    
+    # 切换到小绿的坐标（放在有限地图中央）
+    player_b_x = (finite_map.width // 2) * TILE_SIZE
+    player_b_y = (finite_map.height // 2) * TILE_SIZE
+    
+    game_stage = 'b_world'
+    current_player_x = player_b_x
+    current_player_y = player_b_y
+    current_player_surf = player_b_surf
+
+
+def can_move_to_a(x, y):
+    """小红的移动碰撞检测（无限地图）"""
     corners = [
-        (x, y),
-        (x + PLAYER_SIZE, y),
-        (x, y + PLAYER_SIZE),
-        (x + PLAYER_SIZE, y + PLAYER_SIZE),
+        (x, y), (x + PLAYER_SIZE, y),
+        (x, y + PLAYER_SIZE), (x + PLAYER_SIZE, y + PLAYER_SIZE)
     ]
     for cx, cy in corners:
-        # 将像素坐标转换为图块坐标
         tile_x = cx // TILE_SIZE
         tile_y = cy // TILE_SIZE
-        tile_type = world_map.get_tile(tile_x, tile_y)
-        if not is_walkable(tile_type):
+        tile_type = infinite_map.get_tile(tile_x, tile_y)
+        if tile_type == 2:  # 水域不可通行
             return False
     return True
 
 
-# ============ 8. 主循环 ============
-clock = pygame.time.Clock()
+def can_move_to_b(x, y):
+    """小绿的移动碰撞检测（有限地图）"""
+    corners = [
+        (x, y), (x + PLAYER_SIZE, y),
+        (x, y + PLAYER_SIZE), (x + PLAYER_SIZE, y + PLAYER_SIZE)
+    ]
+    for cx, cy in corners:
+        tile_x = cx // TILE_SIZE
+        tile_y = cy // TILE_SIZE
+        if not finite_map.is_walkable(tile_x, tile_y):
+            return False
+    return True
+
+
+# ============ 7. 主循环 ============
 running = True
 
 while running:
@@ -303,34 +404,64 @@ while running:
         if event.type == pygame.QUIT:
             running = False
 
-    # --- 键盘控制 ---
-    keys = pygame.key.get_pressed()
-    dx, dy = 0, 0
-    speed = 4
-    
-    if keys[pygame.K_w]:
-        dy = -speed
-    if keys[pygame.K_s]:
-        dy = speed
-    if keys[pygame.K_a]:
-        dx = -speed
-    if keys[pygame.K_d]:
-        dx = speed
-
-    if dx != 0:
-        new_x = player_x + dx
-        if can_move_to(new_x, player_y):
-            player_x = new_x
-    
-    if dy != 0:
-        new_y = player_y + dy
-        if can_move_to(player_x, new_y):
-            player_y = new_y
-
-    # --- 更新无限地图（根据玩家位置加载区块） ---
-    player_chunk_x = player_x // (CHUNK_SIZE * TILE_SIZE)
-    player_chunk_y = player_y // (CHUNK_SIZE * TILE_SIZE)
-    world_map.update(player_chunk_x, player_chunk_y, load_radius=3)
+    # --- 更新逻辑 ---
+    if is_transitioning:
+        # 切换动画进行中
+        transition_progress += 1
+        if transition_progress >= transition_duration:
+            is_transitioning = False
+            trigger_switch()
+            transition_progress = 0
+    else:
+        # --- 键盘控制（根据当前阶段控制不同角色） ---
+        keys = pygame.key.get_pressed()
+        dx, dy = 0, 0
+        speed = 4
+        
+        if keys[pygame.K_w]:
+            dy = -speed
+        if keys[pygame.K_s]:
+            dy = speed
+        if keys[pygame.K_a]:
+            dx = -speed
+        if keys[pygame.K_d]:
+            dx = speed
+        
+        if game_stage == 'a_world':
+            # 控制小红
+            if dx != 0:
+                new_x = player_a_x + dx
+                if can_move_to_a(new_x, player_a_y):
+                    player_a_x = new_x
+            if dy != 0:
+                new_y = player_a_y + dy
+                if can_move_to_a(player_a_x, new_y):
+                    player_a_y = new_y
+            current_player_x = player_a_x
+            current_player_y = player_a_y
+            current_player_surf = player_a_surf
+            
+            # 检查是否触发切换
+            check_trigger()
+            
+            # 更新无限地图
+            player_chunk_x = player_a_x // (infinite_map.chunk_size * TILE_SIZE)
+            player_chunk_y = player_a_y // (infinite_map.chunk_size * TILE_SIZE)
+            infinite_map.update(player_chunk_x, player_chunk_y, load_radius=3)
+        
+        else:
+            # 控制小绿
+            if dx != 0:
+                new_x = player_b_x + dx
+                if can_move_to_b(new_x, player_b_y):
+                    player_b_x = new_x
+            if dy != 0:
+                new_y = player_b_y + dy
+                if can_move_to_b(player_b_x, new_y):
+                    player_b_y = new_y
+            current_player_x = player_b_x
+            current_player_y = player_b_y
+            current_player_surf = player_b_surf
 
     # --- 更新摄像机 ---
     update_camera()
@@ -338,29 +469,60 @@ while running:
     # --- 绘制 ---
     screen.fill((0, 0, 0))
     
-    # 1. 绘制可见地图
-    visible_tiles = world_map.get_visible_tiles(camera_x, camera_y, WINDOW_WIDTH, WINDOW_HEIGHT)
-    for screen_x, screen_y, terrain_id in visible_tiles:
-        screen.blit(world_map.tile_cache[terrain_id], (screen_x, screen_y))
+    if game_stage == 'a_world':
+        # 绘制无限地图
+        visible_tiles = infinite_map.get_visible_tiles(camera_x, camera_y, WINDOW_WIDTH, WINDOW_HEIGHT)
+        for screen_x, screen_y, terrain_id in visible_tiles:
+            screen.blit(infinite_map.tile_cache[terrain_id], (screen_x, screen_y))
+    else:
+        # 绘制有限地图
+        finite_map.draw(screen, camera_x, camera_y, WINDOW_WIDTH, WINDOW_HEIGHT)
     
-    # 2. 绘制玩家
-    screen.blit(player_surf, (player_x - camera_x, player_y - camera_y))
-
-    # 3. 显示调试信息（简洁版）
-    font = pygame.font.SysFont('SimHei', 18)
-    center_x = player_x + PLAYER_SIZE // 2
-    center_y = player_y + PLAYER_SIZE // 2
-    tile_x = center_x // TILE_SIZE
-    tile_y = center_y // TILE_SIZE
+    # 绘制当前玩家
+    screen.blit(current_player_surf, (current_player_x - camera_x, current_player_y - camera_y))
     
+    # --- 绘制切换动画（黑屏淡入淡出） ---
+    if is_transitioning:
+        # 半透明黑色遮罩，逐渐变黑再变亮
+        alpha = 255
+        if transition_progress < transition_duration // 2:
+            # 前半段：逐渐变黑
+            alpha = int(255 * (transition_progress / (transition_duration // 2)))
+        else:
+            # 后半段：逐渐变亮
+            progress_in_second_half = transition_progress - transition_duration // 2
+            alpha = 255 - int(255 * (progress_in_second_half / (transition_duration // 2)))
+        
+        # 绘制遮罩
+        mask = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT))
+        mask.fill((0, 0, 0))
+        mask.set_alpha(alpha)
+        screen.blit(mask, (0, 0))
+        
+        # 显示切换文字
+        switch_text = font.render("=== 世界切换中 ===", True, (255, 255, 255))
+        text_rect = switch_text.get_rect(center=(WINDOW_WIDTH//2, WINDOW_HEIGHT//2 - 40))
+        screen.blit(switch_text, text_rect)
+    
+    # --- 显示调试信息 ---
     terrain_names = {0: '平原', 1: '山地', 2: '水域', 3: '森林', 4: '雪山'}
-    current_tile = world_map.get_tile(tile_x, tile_y)
-    info_text = f"坐标: ({tile_x}, {tile_y})  地形: {terrain_names.get(current_tile, '未知')}  区块: ({player_chunk_x}, {player_chunk_y})  已加载: {len(world_map.chunks)}个区块"
+    tile_x = current_player_x // TILE_SIZE
+    tile_y = current_player_y // TILE_SIZE
+    
+    if game_stage == 'a_world':
+        current_tile = infinite_map.get_tile(tile_x, tile_y)
+        stage_text = "世界A (无限) - 小红"
+        trigger_status = f"触发条件: (120,120) 目标距离: {math.sqrt((player_a_x/TILE_SIZE - 120)**2 + (player_a_y/TILE_SIZE - 120)**2):.1f}"
+        info_text = f"{stage_text} | 坐标: ({tile_x}, {tile_y}) | 地形: {terrain_names.get(current_tile, '未知')} | {trigger_status}"
+    else:
+        current_tile = finite_map.get_tile(tile_x, tile_y)
+        stage_text = "世界B (100x100) - 小绿"
+        info_text = f"{stage_text} | 坐标: ({tile_x}, {tile_y}) | 地形: {terrain_names.get(current_tile, '未知')}"
     
     text_surf = font.render(info_text, True, (255, 255, 255))
     text_bg = pygame.Surface((text_surf.get_width() + 10, text_surf.get_height() + 6))
     text_bg.fill((0, 0, 0))
-    text_bg.set_alpha(180)
+    text_bg.set_alpha(200)
     screen.blit(text_bg, (5, 5))
     screen.blit(text_surf, (10, 8))
 
