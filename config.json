@@ -1,0 +1,238 @@
+{
+    "window": {
+        "width": 1600,
+        "height": 900
+    },
+    "debug": {
+        "show_on_start": true
+    },
+    "gameplay": {
+        "player_speed": 4,
+        "sprint_speed": 8,
+        "ai_speed": 1.5
+    },
+    "fragment": {
+        "position_x": 75,
+        "position_y": 75,
+        "require_unlock": true
+    },
+    "npc": {
+        "guide_pos_x": 45,
+        "guide_pos_y": 45,
+        "merchant_pos_x": 60,
+        "merchant_pos_y": 30
+    },
+    "dialogues": {
+        "引路者": {
+            "start": {
+                "text": "你好，旅行者。这是来自配置文件的对话。",
+                "options": [
+                    {
+                        "key": "yes",
+                        "text": "是的，我从红世界来。",
+                        "next": "red_world"
+                    },
+                    {
+                        "key": "no",
+                        "text": "不，我只是迷路了。",
+                        "next": "lost"
+                    },
+                    {
+                        "key": "who",
+                        "text": "你是谁？",
+                        "next": "who_am_i"
+                    },
+                    {
+                        "key": "return_fragment",
+                        "text": "我找到了一个碎片，想交给你",
+                        "next": "return_fragment"
+                    }
+                ]
+            },
+            "red_world": {
+                "text": "你来自红世界？那是个有趣的地方。",
+                "options": [
+                    {
+                        "key": "mission",
+                        "text": "什么使命？",
+                        "next": "mission_detail"
+                    },
+                    {
+                        "key": "thanks",
+                        "text": "谢谢你告诉我这些。",
+                        "next": "end"
+                    }
+                ]
+            },
+            "lost": {
+                "text": "迷路？让我帮你指引方向。",
+                "options": [
+                    {
+                        "key": "tell",
+                        "text": "请告诉我。",
+                        "next": "mission_detail"
+                    },
+                    {
+                        "key": "leave",
+                        "text": "不了，我自己探索。",
+                        "next": "end"
+                    }
+                ]
+            },
+            "who_am_i": {
+                "text": "我是这个世界的守护者。",
+                "options": [
+                    {
+                        "key": "why",
+                        "text": "为什么要等？",
+                        "next": "mission_detail"
+                    },
+                    {
+                        "key": "ok",
+                        "text": "原来如此。",
+                        "next": "end"
+                    }
+                ]
+            },
+            "mission_detail": {
+                "text": "你需要找到三个世界碎片。",
+                "options": [
+                    {
+                        "key": "fragment1",
+                        "text": "第一个碎片在哪里？",
+                        "next": "fragment_info"
+                    },
+                    {
+                        "key": "fragment2",
+                        "text": "我为什么要相信你？",
+                        "next": "trust"
+                    }
+                ]
+            },
+            "fragment_info": {
+                "text": "第一个碎片在东方祭坛。",
+                "options": [
+                    {
+                        "key": "ok",
+                        "text": "好的，我这就去找。",
+                        "next": "end"
+                    }
+                ]
+            },
+            "trust": {
+                "text": "你不需要相信我，自己去看吧。",
+                "options": [
+                    {
+                        "key": "ok",
+                        "text": "好，我会找到它的。",
+                        "next": "end"
+                    }
+                ]
+            },
+            "return_fragment": {
+                "text": "干得漂亮！这是你的第一个碎片。继续前进。",
+                "options": []
+            },
+            "no_fragment": {
+                "text": "你还没有碎片呢。",
+                "options": [
+                    {
+                        "key": "ok",
+                        "text": "好吧，我再去找找。",
+                        "next": "end"
+                    }
+                ]
+            },
+            "end": {
+                "text": "愿旅途顺利。",
+                "options": []
+            }
+        },
+        "商人": {
+            "start": {
+                "text": "嘿，旅行者！要看看我的商品吗？（配置修改版）",
+                "options": [
+                    {
+                        "key": "yes",
+                        "text": "好啊，有什么？",
+                        "next": "goods"
+                    },
+                    {
+                        "key": "no",
+                        "text": "不了，我没兴趣。",
+                        "next": "no_thanks"
+                    },
+                    {
+                        "key": "info",
+                        "text": "你知道世界碎片的事吗？",
+                        "next": "fragment_info"
+                    }
+                ]
+            },
+            "goods": {
+                "text": "我这里有各种好东西。不过你需要帮我找到失落的货物。",
+                "options": [
+                    {
+                        "key": "accept",
+                        "text": "成交！",
+                        "next": "quest_accept"
+                    },
+                    {
+                        "key": "decline",
+                        "text": "算了，我没时间。",
+                        "next": "end"
+                    }
+                ]
+            },
+            "quest_accept": {
+                "text": "太好了！货物在西北角遗迹里。",
+                "options": [
+                    {
+                        "key": "ok",
+                        "text": "没问题。",
+                        "next": "end"
+                    }
+                ]
+            },
+            "no_thanks": {
+                "text": "好吧，随时欢迎回来。",
+                "options": [
+                    {
+                        "key": "ok",
+                        "text": "好的。",
+                        "next": "end"
+                    }
+                ]
+            },
+            "fragment_info": {
+                "text": "碎片在中央祭坛，有守护者看守。",
+                "options": [
+                    {
+                        "key": "thanks",
+                        "text": "多谢提醒。",
+                        "next": "end"
+                    },
+                    {
+                        "key": "more",
+                        "text": "还有其他碎片吗？",
+                        "next": "more_fragments"
+                    }
+                ]
+            },
+            "more_fragments": {
+                "text": "一共三个碎片，分散在不同的世界。",
+                "options": [
+                    {
+                        "key": "thanks",
+                        "text": "谢谢。",
+                        "next": "end"
+                    }
+                ]
+            },
+            "end": {
+                "text": "祝你好运。",
+                "options": []
+            }
+        }
+    }
+}
