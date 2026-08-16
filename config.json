@@ -20,7 +20,11 @@
         "guide_pos_x": 45,
         "guide_pos_y": 45,
         "merchant_pos_x": 60,
-        "merchant_pos_y": 30
+        "merchant_pos_y": 30,
+        "watcher_pos_x": 30,
+        "watcher_pos_y": 80,
+        "recorder_pos_x": 16,
+        "recorder_pos_y": 16
     },
     "dialogues": {
         "引路者": {
@@ -234,5 +238,19 @@
                 "options": []
             }
         }
+    },
+    "locations": {
+        "pillar": [
+            120,
+            120
+        ],
+        "ruins": [
+            400,
+            400
+        ],
+        "crack": [
+            600,
+            600
+        ]
     }
 }
